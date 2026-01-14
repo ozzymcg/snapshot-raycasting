@@ -21,3 +21,4 @@ For full details (math, method, figures, defaults, and usage):
 ## Notes
 - Best reliability comes from using **perimeter walls only** as landmarks (`MAP_PERIMETER`).
 - If you enable interior objects, increase candidate hits per sensor (`candidates_per_sensor = 2`) and use quadrants where possible.
+- This version is configured for JARS, but can have its setPose function replaced to fit other libraries, such as LemLib.
