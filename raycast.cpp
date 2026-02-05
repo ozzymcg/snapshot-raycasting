@@ -12,11 +12,11 @@ Vec2  mul(const Vec2& a, float s) { return Vec2{a.x * s, a.y * s}; }
 float dot(const Vec2& a, const Vec2& b) { return a.x * b.x + a.y * b.y; }
 float norm(const Vec2& a) { return std::sqrt(dot(a,a)); }
 
-Vec2 unit_from_jar_deg(float jar_deg) {
-  // JAR convention: 0° is +Y, clockwise-positive.
+Vec2 unit_from_heading_deg(float heading_deg) {
+  // Heading convention used by snapshot_pose: 0 deg is +Y, clockwise-positive.
   // Unit vector in field coords:
   // (sin(theta), cos(theta))
-  const float th = jar_deg * 3.1415926535f / 180.0f;
+  const float th = heading_deg * 3.1415926535f / 180.0f;
   return Vec2{std::sin(th), std::cos(th)};
 }
 
