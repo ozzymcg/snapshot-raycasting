@@ -20,7 +20,7 @@ Vec2  add(const Vec2& a, const Vec2& b);
 Vec2  mul(const Vec2& a, float s);
 float dot(const Vec2& a, const Vec2& b);
 float norm(const Vec2& a);
-Vec2  unit_from_jar_deg(float jar_deg);
+Vec2  unit_from_heading_deg(float heading_deg);
 
 // Returns all hits (sorted nearest-first). If you only want the nearest K, take the first K.
 std::vector<RayHit> raycast_all(
