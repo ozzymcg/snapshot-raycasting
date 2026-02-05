@@ -88,7 +88,7 @@ void init_once() {
     right.x_right_in = 7.0f;
     right.y_fwd_in = 0.0f;
     right.rel_deg = 90.0f;
-    right.field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS;
+    right.field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS_ALL;
     right.use_confidence_gate = true;
     right.min_confidence = 35;
     g_sensors.push_back(right);
