@@ -251,8 +251,34 @@ Configure sensor geometry in:
   src/snapshot_pose/snapshot_bindings.cpp
 
   - distance sensor ports
-  - x_right_in / y_fwd_in / rel_deg
+  - x_right_in / y_fwd_in / rel_deg (mount pose per sensor)
   - field masks (per-sensor or global)
   - sample count and gating knobs
+
+Map mask quick reference (collision_map.hpp):
+  MAP_PERIMETER
+  MAP_LONG_GOALS
+  MAP_LONG_GOAL_BRACES
+  MAP_LONG_GOALS_ALL
+  MAP_CENTER_GOAL_POS45 / MAP_CENTER_GOAL_NEG45 / MAP_CENTER_GOALS
+  MAP_MATCHLOADERS
+  MAP_PARK_ZONES
+
+Per-sensor collision examples:
+  // Front sensor: only walls
+  front.field_mask_override = MAP_PERIMETER;
+
+  // Right sensor: walls + long goals + braces
+  right.field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS_ALL;
+
+Runtime sensor customization (without editing defaults):
+  snapshot_pose::DistanceSensorConfig s = {};
+  s.dev = &distFront;
+  s.x_right_in = 0.0f;
+  s.y_fwd_in = 7.0f;
+  s.rel_deg = 0.0f;
+  s.field_mask_override = MAP_PERIMETER;
+  snapshot_pose::snapshot_bindings_update_sensor(0, s);
+  snapshot_pose::snapshot_bindings_set_sensor_mask(1, MAP_PERIMETER | MAP_LONG_GOALS_ALL);
 
 --------------------------------------------------------------------------- */
