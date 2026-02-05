@@ -59,6 +59,34 @@ void init_once() {
   if (g_init) return;
   g_init = true;
 
+  // ---------------------------
+  // QUICK SETUP GUIDE
+  // ---------------------------
+  // 1) Sensor location on robot (per sensor):
+  //      x_right_in: +right from robot center (in)
+  //      y_fwd_in:   +forward from robot center (in)
+  //      rel_deg:    facing relative to robot forward
+  //                  0=forward, +90=right, 180=back, -90=left
+  //
+  // 2) Collidable map objects per sensor:
+  //      field_mask_override = bitmask of allowed map objects for THAT sensor raycast.
+  //      Use 0 to fall back to g_cfg.field_mask.
+  //
+  //    Mask options (from collision_map.hpp):
+  //      MAP_PERIMETER
+  //      MAP_LONG_GOALS
+  //      MAP_LONG_GOAL_BRACES
+  //      MAP_LONG_GOALS_ALL
+  //      MAP_CENTER_GOAL_POS45
+  //      MAP_CENTER_GOAL_NEG45
+  //      MAP_CENTER_GOALS
+  //      MAP_MATCHLOADERS
+  //      MAP_PARK_ZONES
+  //
+  //    Example:
+  //      front.field_mask_override = MAP_PERIMETER; // low sensor, walls only
+  //      right.field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS_ALL;
+
   if (!g_cfg_custom) {
     g_cfg = SnapshotConfig{};
     g_cfg.field_mask = MAP_PERIMETER;
@@ -126,6 +154,22 @@ void snapshot_bindings_set_sensors(const std::vector<DistanceSensorConfig>& sens
   g_sensors = sensors;
   g_sensors_custom = true;
   g_init = false;
+}
+
+bool snapshot_bindings_update_sensor(std::size_t index, const DistanceSensorConfig& sensor) {
+  init_once();
+  if (index >= g_sensors.size()) return false;
+  g_sensors[index] = sensor;
+  g_sensors_custom = true;
+  return true;
+}
+
+bool snapshot_bindings_set_sensor_mask(std::size_t index, std::uint32_t mask_override) {
+  init_once();
+  if (index >= g_sensors.size()) return false;
+  g_sensors[index].field_mask_override = mask_override;
+  g_sensors_custom = true;
+  return true;
 }
 
 void snapshot_bindings_set_config(const SnapshotConfig& cfg) {
