@@ -10,6 +10,14 @@
 
 namespace snapshot_pose {
 
+enum class Quadrant {
+  BL,
+  BR,
+  TL,
+  TR,
+  ANY
+};
+
 // One physical distance sensor on the robot.
 struct DistanceSensorConfig {
   pros::Distance* dev = nullptr;
@@ -56,6 +64,10 @@ struct SnapshotConfig {
 
   // Reject solutions if residuals are bad (3-sigma-ish per sensor).
   float max_chi2_per_sensor = 9.0f;
+
+  // Bias odom guess toward a known quadrant before raycast candidate search.
+  // Used by snapshot_setpose_quadrant().
+  float quadrant_margin_in = 2.0f;
 };
 
 struct SnapshotResult {
@@ -63,19 +75,28 @@ struct SnapshotResult {
 
   float x_in = 0.0f;
   float y_in = 0.0f;
-  float heading_deg = 0.0f; // JAR convention: 0 = +Y, clockwise-positive :contentReference[oaicite:2]{index=2}
+  // Heading convention used by snapshot_pose: 0 = +Y, clockwise-positive.
+  float heading_deg = 0.0f;
 
   int used_sensors = 0;
   float chi2 = 0.0f;
 };
 
-// You provide your Odom type; we only need set_position().
+// You provide an odom-like type; we only need:
+//   set_position(x_in, y_in, heading_deg, forward_tracker_in, sideways_tracker_in)
+// If your library uses a different API, pass an adapter type that exposes this method.
+//
+// LemLib adapter example:
+//   struct OdomAdapter { void set_position(float x, float y, float h, float, float) { chassis.setPose(x, y, h); } };
+//
+// JAR adapter example:
+//   struct OdomAdapter { void set_position(float x, float y, float h, float f, float s) { odom.set_position(x, y, h, f, s); } };
 template <typename OdomT>
 SnapshotResult snapshot_setpose(
   OdomT& odom,
   const std::vector<DistanceSensorConfig>& sensors,
   const SnapshotConfig& cfg,
-  float heading_deg_jar,
+  float heading_deg,
   float forward_tracker_in,
   float sideways_tracker_in,
   float odom_guess_x_in,
