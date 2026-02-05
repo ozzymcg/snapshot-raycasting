@@ -1,3 +1,5 @@
+<img width="252" height="251" alt="image" src="https://github.com/user-attachments/assets/8a52fa49-db0e-4695-8263-f7d2a690788d" />
+
 # Snapshot Raycasting (VEX V5)
 
 This project provides a **raycast-based snapshot pose correction** system using **V5 Distance Sensors** and a **segmented field collision map**. It is intended for **one-shot setPose updates** (not continuous localization), and is designed to be easy to integrate into PROS projects.
