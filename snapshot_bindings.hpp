@@ -40,7 +40,24 @@ struct SnapshotPoseRuntime {
 // Runtime wiring + optional config overrides.
 // snapshot_bindings_set_runtime(...) must be called before snapshot_setpose_quadrant().
 bool snapshot_bindings_set_runtime(const SnapshotPoseRuntime& runtime);
+
+// Replace the full sensor list. Each sensor can use its own field mask via
+// DistanceSensorConfig::field_mask_override.
+//
+// Sensor geometry fields:
+//   x_right_in, y_fwd_in, rel_deg
+//
+// Per-sensor collision filtering:
+//   field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS_ALL; // example
 void snapshot_bindings_set_sensors(const std::vector<DistanceSensorConfig>& sensors);
+
+// Update a single sensor entry in-place. Returns false if index is out of range.
+bool snapshot_bindings_update_sensor(std::size_t index, const DistanceSensorConfig& sensor);
+
+// Convenience helper: set only one sensor's raycast mask. Returns false if index is out of range.
+// Use 0 to fall back to SnapshotConfig::field_mask.
+bool snapshot_bindings_set_sensor_mask(std::size_t index, std::uint32_t mask_override);
+
 void snapshot_bindings_set_config(const SnapshotConfig& cfg);
 void snapshot_bindings_reset_defaults();
 
