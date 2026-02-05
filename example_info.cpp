@@ -1,5 +1,5 @@
 //
-// SNAPSHOT POSE: FULL SETUP + USAGE WALKTHROUGH (PROS + JAR)
+// SNAPSHOT POSE: FULL SETUP + USAGE WALKTHROUGH (PROS, library-agnostic)
 //
 // IMPORTANT:
 //   - If your project already has initialize()/autonomous()/opcontrol(), DO NOT keep duplicates.
@@ -8,13 +8,32 @@
 //     Your auton should only call snapshot_pose::snapshot_setpose_quadrant(...).
 //
 // REFERENCES:
-//   PROS Distance: get() returns mm, 9999 if no object; get_confidence 0..63 meaningful when >200mm. 
-//   JAR odom set_position signature + orientation convention documented in JAR odometry docs. 
+//   PROS Distance: get() returns mm, 9999 if no object; get_confidence 0..63 meaningful when >200mm.
 
 #include "main.h"
 #include "snapshot_pose/snapshot_bindings.hpp"
 
 namespace {
+
+// Runtime callback stubs. Replace these with your odometry library calls.
+//
+// LemLib examples:
+//   static float cb_heading(void*) { return chassis.getPose(false, false).theta; }
+//   static float cb_guess_x(void*) { return chassis.getPose(false, false).x; }
+//   static float cb_guess_y(void*) { return chassis.getPose(false, false).y; }
+//   static void cb_apply_pose(void*, float x, float y, float h, float, float) { chassis.setPose(x, y, h); }
+//
+// JAR examples:
+//   static float cb_heading(void*) { return odom.orientation_deg; }
+//   static float cb_guess_x(void*) { return odom.X_position; }
+//   static float cb_guess_y(void*) { return odom.Y_position; }
+//   static void cb_apply_pose(void*, float x, float y, float h, float f, float s) { odom.set_position(x, y, h, f, s); }
+static float cb_heading(void*) { return 0.0f; }
+static float cb_guess_x(void*) { return 0.0f; }
+static float cb_guess_y(void*) { return 0.0f; }
+static float cb_tracker_fwd(void*) { return 0.0f; }
+static float cb_tracker_side(void*) { return 0.0f; }
+static void cb_apply_pose(void*, float, float, float, float, float) {}
 
 // ------------------------------
 // STEP 0: Sanity notes (read once)
@@ -25,7 +44,7 @@ namespace {
 //   Origin (0,0): bottom-left
 //   +X right/forward off wall, +Y up/towards left matchloader
 //
-// JAR heading convention assumed by solver and by set_position call:
+// Heading convention assumed by solver:
 //   heading_deg: 0° points +Y, clockwise-positive. 
 //
 // Quadrants are defined by split lines x=72, y=72 (inches):
@@ -84,9 +103,21 @@ void initialize() {
   pros::lcd::initialize();
   pros::lcd::print(0, "Snapshot Pose Example");
 
-  // (Optional) If you want to guide users:
-  pros::lcd::print(1, "Edit bindings.cpp to configure");
-  pros::lcd::print(2, "Then call snapshot_setpose_quadrant()");
+  snapshot_pose::SnapshotPoseRuntime runtime{};
+  runtime.get_heading_deg = cb_heading;
+  runtime.get_guess_x_in = cb_guess_x;
+  runtime.get_guess_y_in = cb_guess_y;
+  runtime.get_forward_tracker_in = cb_tracker_fwd;
+  runtime.get_sideways_tracker_in = cb_tracker_side;
+  runtime.apply_pose = cb_apply_pose;
+
+  if (!snapshot_pose::snapshot_bindings_set_runtime(runtime)) {
+    pros::lcd::print(1, "Snapshot runtime setup failed");
+  }
+
+  // (Optional) If you want to guide:
+  pros::lcd::print(2, "Configure bindings + runtime");
+  pros::lcd::print(3, "Then call snapshot_setpose_quadrant()");
 }
 
 void autonomous() {
@@ -101,7 +132,7 @@ void autonomous() {
   //   drive.brake();
   //   drive.setBrakeMode(pros::E_MOTOR_BRAKE_HOLD);
   //
-  // The goal is “robot not translating / rotating”.
+  // The goal is “robot not moving / rotating”.
 
   pros::delay(200); // allow motion to settle
 
@@ -112,9 +143,16 @@ void autonomous() {
   // If you KNOW the robot is in a quadrant, pass it.
   // This prevents wrong snaps if multiple solutions exist.
   //
+  // Quadrant labels:
+  //   BL  = Bottom-Left
+  //   BR  = Bottom-Right
+  //   TL  = Top-Left
+  //   TR  = Top-Right
+  //   ANY = No quadrant restriction
+  //
   // Example: at the start of many routines you know your starting tile region.
 
-  snapshot_pose::Quadrant q = snapshot_pose::Quadrant::TR;  // EDIT to match your known region
+  snapshot_pose::Quadrant q = snapshot_pose::Quadrant::TR;  //EDIT to match your known region
 
   // If you truly do not know:
   // snapshot_pose::Quadrant q = snapshot_pose::Quadrant::ANY;
@@ -188,65 +226,33 @@ void opcontrol() {
 }
 
 /* --------------------------------------------------------------------------
-   STEP 5: What the user must edit in src/snapshot_pose/snapshot_bindings.cpp
+   STEP 5: Library-specific setup points
    --------------------------------------------------------------------------
 
-Open:  src/snapshot_pose/snapshot_bindings.cpp
+Configure runtime callbacks in initialize() (this file):
+  runtime.get_heading_deg
+  runtime.get_guess_x_in / runtime.get_guess_y_in
+  runtime.apply_pose
+  runtime.get_forward_tracker_in / runtime.get_sideways_tracker_in (optional)
 
-Edit these sections:
+LemLib callback example:
+  runtime.get_heading_deg = [](void*) { return chassis.getPose(false, false).theta; };
+  runtime.get_guess_x_in  = [](void*) { return chassis.getPose(false, false).x; };
+  runtime.get_guess_y_in  = [](void*) { return chassis.getPose(false, false).y; };
+  runtime.apply_pose      = [](void*, float x, float y, float h, float, float) { chassis.setPose(x, y, h); };
 
-(1) ODOM ACCESS
-    - Include the header that defines your odom object.
-    - Ensure the file can reference:
-        odom.X_position
-        odom.Y_position
-        odom.orientation_deg   (recommended heading source)
-        odom.set_position(x,y,heading,fwd,side) 
+JAR callback example:
+  runtime.get_heading_deg = [](void*) { return odom.orientation_deg; };
+  runtime.get_guess_x_in  = [](void*) { return odom.X_position; };
+  runtime.get_guess_y_in  = [](void*) { return odom.Y_position; };
+  runtime.apply_pose      = [](void*, float x, float y, float h, float f, float s) { odom.set_position(x, y, h, f, s); };
 
-(2) DISTANCE SENSOR PORTS
-    - Either define sensors there:
-        static pros::Distance distFront(PORT);
-      or use extern to refer to your existing devices.
+Configure sensor geometry in:
+  src/snapshot_pose/snapshot_bindings.cpp
 
-(3) TRACKERS + HEADING SOURCES
-    - Provide get_heading_jar_deg()
-        return odom.orientation_deg;   // best default
-    - Provide get_forward_tracker_in() and get_sideways_tracker_in()
-        return your tracking-wheel distances in inches (same values your odom update uses)
-      If you don't have tracking wheels:
-        return 0.0f; (and ensure your odom supports that)
-
-(4) SENSOR MOUNT OFFSETS
-    - Measure offsets in inches from robot center:
-        x_right_in (positive to robot right)
-        y_fwd_in   (positive to robot forward)
-    - Set rel_deg:
-        0 forward, +90 right, 180 back, -90 left
-
-(5) PER-SENSOR FIELD MASKS (HEIGHT DIFFERENCES)
-    - Example:
-        s.field_mask_override = MAP_PERIMETER;
-      for a low sensor that cannot see interior objects well.
-
-    - Another sensor might allow more:
-        s.field_mask_override = MAP_PERIMETER | MAP_LONG_GOALS | MAP_CENTER_GOALS;
-
-    - Global fallback:
-        g_cfg.field_mask = MAP_PERIMETER;  // used if override == 0
-
-(6) CANDIDATES
-    - If any sensor can see interior field objects, increase:
-        g_cfg.candidates_per_sensor = 2;
-      This lets the solver try multiple “hit explanations” per sensor.
-
-After edits:
-  - Build and run.
-  - Use opcontrol debug button to test snap in known locations.
-  - If snaps are wrong:
-      * restrict masks (use perimeter only)
-      * ensure offsets are correct
-      * ensure robot is stopped before snapping
-      * use a quadrant when possible
+  - distance sensor ports
+  - x_right_in / y_fwd_in / rel_deg
+  - field masks (per-sensor or global)
+  - sample count and gating knobs
 
 --------------------------------------------------------------------------- */
-
