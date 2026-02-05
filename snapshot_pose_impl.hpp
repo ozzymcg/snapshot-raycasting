@@ -3,6 +3,7 @@
 #include "snapshot_pose/raycast.hpp"
 #include <algorithm>
 #include <cmath>
+#include <pros/error.h>
 
 
 // Put this in the include/snapshot_pose folder
@@ -23,10 +24,15 @@ static bool read_distance_median_in(
   const SnapshotConfig& cfg,
   float& out_z_in
 ) {
-  std::vector<float> vals;
-  vals.reserve(cfg.samples);
+  if (sc.dev == nullptr) return false;
 
-  for (int i = 0; i < cfg.samples; ++i) {
+  const int sample_count = std::max(1, cfg.samples);
+  const int required_valid = std::max(1, (sample_count + 1) / 2);
+
+  std::vector<float> vals;
+  vals.reserve((std::size_t)sample_count);
+
+  for (int i = 0; i < sample_count; ++i) {
     const int mm = sc.dev->get();               // PROS distance returns mm
     const float z_in = mm_to_in((float)mm);
 
@@ -39,22 +45,32 @@ static bool read_distance_median_in(
       if (z_in > 7.874f && conf < sc.min_confidence) ok = false;
     }
 
+    if (ok && sc.use_velocity_gate) {
+      const double vel = sc.dev->get_object_velocity();
+      if (vel != PROS_ERR_F && std::fabs(vel) > sc.max_abs_vel_mps) ok = false;
+    }
+
+    if (ok && sc.use_object_size_gate) {
+      const int size = sc.dev->get_object_size();
+      if (size != PROS_ERR && size < sc.min_object_size) ok = false;
+    }
+
     if (ok) vals.push_back(z_in);
     pros::delay(cfg.sample_delay_ms);
   }
 
-  if (vals.size() < (std::size_t)std::max(3, cfg.samples / 2)) return false;
+  if ((int)vals.size() < required_valid) return false;
 
   std::sort(vals.begin(), vals.end());
   out_z_in = vals[vals.size() / 2];
   return true;
 }
 
-static Vec2 rotate_robot_to_field_offset(float heading_deg_jar, float x_right, float y_fwd) {
-  // For JAR heading:
+static Vec2 rotate_robot_to_field_offset(float heading_deg, float x_right, float y_fwd) {
+  // Heading convention used by snapshot_pose:
   // forward unit f = (sin(th), cos(th))
   // right   unit r = (cos(th), -sin(th))
-  const float th = heading_deg_jar * 3.1415926535f / 180.0f;
+  const float th = heading_deg * 3.1415926535f / 180.0f;
   const float s = std::sin(th);
   const float c = std::cos(th);
 
@@ -126,14 +142,14 @@ SnapshotResult snapshot_setpose(
   OdomT& odom,
   const std::vector<DistanceSensorConfig>& sensors,
   const SnapshotConfig& cfg,
-  float heading_deg_jar,
+  float heading_deg,
   float forward_tracker_in,
   float sideways_tracker_in,
   float odom_guess_x_in,
   float odom_guess_y_in
 ) {
   SnapshotResult res;
-  res.heading_deg = heading_deg_jar;
+  res.heading_deg = heading_deg;
 
   if (sensors.size() < 2) return res;
 
@@ -155,11 +171,11 @@ struct Meas {
     if (!read_distance_median_in(sc, cfg, z_in)) continue;
 
     // Sensor origin offset in field coords depends on heading.
-    const Vec2 o_field = rotate_robot_to_field_offset(heading_deg_jar, sc.x_right_in, sc.y_fwd_in);
+    const Vec2 o_field = rotate_robot_to_field_offset(heading_deg, sc.x_right_in, sc.y_fwd_in);
 
-    // Sensor direction = heading + relative sensor direction (both JAR-style).
-    const float dir_deg = heading_deg_jar + sc.rel_deg;
-    const Vec2 d_field = unit_from_jar_deg(dir_deg);
+    // Sensor direction = heading + relative sensor direction.
+    const float dir_deg = heading_deg + sc.rel_deg;
+    const Vec2 d_field = unit_from_heading_deg(dir_deg);
 
     // Collect candidate hits using odom guess.
     const Vec2 guess_center{odom_guess_x_in, odom_guess_y_in};
@@ -281,7 +297,7 @@ struct Meas {
   best_pose.y = std::max(-2.0f, std::min(FIELD_SIZE_IN + 2.0f, best_pose.y));
 
   // Apply to odometry
-  odom.set_position(best_pose.x, best_pose.y, heading_deg_jar, forward_tracker_in, sideways_tracker_in);
+  odom.set_position(best_pose.x, best_pose.y, heading_deg, forward_tracker_in, sideways_tracker_in);
 
   res.ok = true;
   res.x_in = best_pose.x;
